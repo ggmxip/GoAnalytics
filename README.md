@@ -33,5 +33,5 @@ The Analytics Dashboard is a real-time data visualization tool built using HTML,
 
 1. **Clone the repository:**
    ```bash
-   git clone <repository-url>
-   cd <repository-folder>
+   git clone https://github.com/ggmxip/GoAnalytics.git
+   cd GoAnalytics/cmd
