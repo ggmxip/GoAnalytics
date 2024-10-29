@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1 class="my-4">Analytics Dashboard</h1>
+    <form id="dataForm">
+        <div class="form-group">
+            <label for="id">ID:</label>
+            <input type="text" class="form-control" id="id" required>
+        </div>
+        <div class="form-group">
+            <label for="value">Value:</label>
+            <input type="number" class="form-control" id="value" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Submit Data</button>
+        <button type="button" class="btn btn-danger" id="resetChartButton">Reset Chart</button>
+    </form>
+    <canvas id="dataChart" width="400" height="200"></canvas>
+</div>
+
+<script>
+    let chart; // Global variable for the chart instance
+
+    document.getElementById('dataForm').addEventListener('submit', async function(event) {
+        event.preventDefault(); // Prevent form submission
+
+        const id = document.getElementById('id').value;
+        const value = document.getElementById('value').value;
+
+        const data = { id, value: parseInt(value), time: new Date() }; // Create data object
+
+        try {
+            const response = await fetch('http://localhost:8080/data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) throw new Error('Failed to post data');
+
+            const responseData = await response.json();
+            console.log('Data posted:', responseData);
+
+            // Directly update the chart with the new data point
+            updateChart(responseData);
+        } catch (error) {
+            console.error('Error posting data:', error);
+        }
+    });
+
+    async function fetchData() {
+        const response = await fetch('http://localhost:8080/data');
+        if (!response.ok) throw new Error('Network response was not ok');
+        return await response.json();
+    }
+
+    function renderChart(data) {
+        if (!data || !Array.isArray(data)) {
+            console.error("Invalid data received:", data);
+            return;
+        }
+
+        const ctx = document.getElementById('dataChart').getContext('2d');
+        const labels = data.map(point => point.id); // Using ID for the X-axis labels
+        const values = data.map(point => point.value);
+
+        // Create the chart instance
+        chart = new Chart(ctx, {
+            type: 'line', // Use 'line' for line chart
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Data Points',
+                    data: values,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    fill: false,
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'User ID'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateChart(newData) {
+        // Check if chart exists
+        if (!chart) {
+            console.error("Chart not initialized.");
+            return;
+        }
+
+        // Update chart data with the new data point
+        chart.data.labels.push(newData.id); // Add new ID to labels
+        chart.data.datasets[0].data.push(newData.value); // Add new value to dataset
+
+        // Update the chart
+        chart.update();
+    }
+
+    async function init() {
+        try {
+            const data = await fetchData();
+            renderChart(data);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
+    }
+
+    // Reset chart button functionality
+    document.getElementById('resetChartButton').addEventListener('click', function() {
+        if (chart) {
+            chart.destroy(); // Destroy existing chart instance
+            chart = null; // Reset chart variable
+        }
+
+        // Clear the canvas and reinitialize
+        const ctx = document.getElementById('dataChart').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // Clear the canvas
+
+        // Initialize a new chart with empty data
+        renderChart([]); // Start with an empty chart
+    });
+
+    init(); // Initialize the chart with data
+
+    // Initialize Pusher for real-time updates
+    const pusher = new Pusher('9123a8c1dab92b76a05b', {
+        cluster: 'ap2',
+        encrypted: true
+    });
+
+    const channel = pusher.subscribe('analytics-channel');
+    channel.bind('new-data', function(data) {
+        console.log('New data received:', data);
+        // Update the chart with new data here
+        updateChart(data);
+    });
+</script>
+</body>
+</html>
